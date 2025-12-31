@@ -10,75 +10,62 @@ warnings.filterwarnings('ignore')
 # KONFIGURASI HALAMAN
 # ========================================================================
 st.set_page_config(
-    page_title="GHI Predictor Pro | Jawa Series",
+    page_title="GHI Predictor Pro",
     page_icon="🌞",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ========================================================================
-# CUSTOM CSS (PERBAIKAN VISUAL & KONTRAS)
+# CUSTOM CSS (ADAPTIF DARK & LIGHT MODE)
 # ========================================================================
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
+    
     /* Header Utama */
     .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2.5rem;
+        padding: 2rem;
         border-radius: 15px;
-        color: white;
+        color: white !important;
         text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
     }
 
-    /* FIX: Announcement Box (Kontras Tinggi) */
+    /* FIX: Box Pengumuman Adaptif */
     .announce-box {
-        background-color: #f0f7ff; /* Latar biru sangat muda */
+        /* Mengikuti warna teks sistem agar terlihat di dark/light mode */
+        color: var(--text-color); 
+        background-color: rgba(102, 126, 234, 0.1); /* Transparan lembut */
+        border: 1px solid #667eea;
         border-left: 6px solid #667eea;
         padding: 20px;
         border-radius: 10px;
         margin-bottom: 25px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        line-height: 1.8; /* Memberi ruang antar baris agar tidak menimpa */
+        line-height: 1.6;
     }
     
     .announce-box strong {
-        color: #1e3a8a; /* Biru tua gelap */
-        font-size: 1.1rem;
         display: block;
         margin-bottom: 5px;
+        font-size: 1.1rem;
+        color: #667eea; /* Tetap ungu agar konsisten */
     }
 
-    .announce-box p {
-        color: #2d3748; /* Abu-abu sangat gelap */
-        margin: 0;
-        font-size: 1rem;
-    }
-
-    /* Link Magenta Terang agar terlihat jelas */
+    /* Link yang terlihat di semua mode (Gold/Orange) */
     .announce-link {
-        color: #e21dca !important; 
+        color: #FFA500 !important; 
         text-decoration: underline;
         font-weight: 700;
     }
 
-    /* Button Styling */
     .stButton>button {
         border-radius: 10px;
-        height: 3.5rem;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+        color: white !important;
         font-weight: bold;
-        border: none;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        height: 3rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -99,7 +86,7 @@ def load_excel_data(uploaded_file):
             return pd.DataFrame({'hour': range(24), 'GHI': ghi_values}), True, f"Data {target_col} Aktif"
     except Exception as e:
         return None, False, str(e)
-    return None, False, "Format file tidak dikenali"
+    return None, False, "Format tidak cocok"
 
 def get_status(ghi):
     if ghi == 0: return "🌙 Malam"
@@ -110,7 +97,6 @@ def get_status(ghi):
 def run_prediction(historical_data, temp, hum, press, model):
     now = datetime.now().replace(minute=0, second=0, microsecond=0)
     base_dict = historical_data.set_index('hour')['GHI'].to_dict()
-    # Faktor koreksi lingkungan
     w_factor = (1 + (temp - 25) * 0.003) * (1 - (hum / 100) * 0.15) * (press / 1013)
     
     results = []
@@ -118,47 +104,41 @@ def run_prediction(historical_data, temp, hum, press, model):
         future = now + timedelta(hours=i)
         hr = future.hour
         val = base_dict.get(hr, 0) * w_factor
-        if hr < 6 or hr >= 18: val = 0 # Proteksi malam hari
+        if hr < 6 or hr >= 18: val = 0 
         if model in ['arima', 'sarima']: val *= (1 + np.random.randn() * 0.03)
         
         final_ghi = round(max(0, val))
         results.append({
-            "Waktu": future,
-            "Jam": future.strftime('%H:%M'),
-            "GHI (W/m²)": final_ghi,
-            "Kualitas": get_status(final_ghi),
+            "Waktu": future, "Jam": future.strftime('%H:%M'),
+            "GHI (W/m²)": final_ghi, "Kualitas": get_status(final_ghi),
             "Confidence": f"{max(60, 95 - i*1.4):.1f}%"
         })
     return pd.DataFrame(results)
 
 # ========================================================================
-# APLIKASI UTAMA
+# MAIN APP
 # ========================================================================
 def main():
-    # Header
     st.markdown("""
         <div class="main-header">
-            <h1 style='color: white; margin:0;'>SISTEM PREDIKSI GHI REAL-TIME</h1>
-            <p style='color: #e2e8f0; font-size: 1.1rem;'>Monitoring Radiasi Matahari Pulau Jawa</p>
+            <h1 style='color: white; margin:0;'>SISTEM PREDIKSI GHI</h1>
+            <p style='color: white; opacity: 0.8;'>Monitoring Real-Time Radiasi Matahari</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Perbaikan Announcement Box
+    # Box Pengumuman dengan Warna Teks Fleksibel
     st.markdown("""
         <div class="announce-box">
-            <strong>📢 INFORMASI SUMBER DATA</strong>
-            <p>
-                Prediksi ini menggunakan profil historis dari 
-                <a href="https://globalsolaratlas.info/" target="_blank" class="announce-link">Global Solar Atlas</a>. 
-                Sistem secara otomatis menyesuaikan data dengan waktu lokal Anda saat ini untuk memberikan estimasi 24 jam ke depan.
-            </p>
+            <strong>📢 SUMBER DATA HISTORIS</strong>
+            Sistem ini menggunakan profil radiasi dari 
+            <a href="https://globalsolaratlas.info/" target="_blank" class="announce-link">Global Solar Atlas</a>. 
+            Data disesuaikan secara real-time berdasarkan jam sistem Anda.
         </div>
     """, unsafe_allow_html=True)
 
-    # Sidebar
     with st.sidebar:
-        st.markdown("### 📂 Input Data Profil")
-        uploaded_file = st.file_uploader("Upload Excel Solar Atlas", type=['xlsx'])
+        st.header("📂 Data Source")
+        uploaded_file = st.file_uploader("Upload Excel", type=['xlsx'])
         if uploaded_file:
             data, success, msg = load_excel_data(uploaded_file)
             if success:
@@ -168,20 +148,17 @@ def main():
         if 'hist_data' not in st.session_state:
             st.session_state['hist_data'] = pd.DataFrame({'hour': range(24), 'GHI': [0]*24})
         
-        st.markdown("---")
-        model_type = st.selectbox("Algoritma", ['ARIMA', 'SARIMA', 'Exponential'])
+        model_type = st.selectbox("Metode", ['ARIMA', 'SARIMA', 'Exponential'])
 
-    # Input & Output
-    col_in, col_out = st.columns([1, 2], gap="large")
+    col_in, col_out = st.columns([1, 2], gap="medium")
 
     with col_in:
-        st.subheader("🌦️ Kondisi Lingkungan")
+        st.subheader("🌦️ Parameter Cuaca")
         with st.form("input_form"):
-            t = st.slider("Temperatur (°C)", 15, 45, 30)
+            t = st.slider("Suhu (°C)", 15, 45, 30)
             h = st.slider("Kelembapan (%)", 0, 100, 60)
             p = st.number_input("Tekanan (hPa)", 900, 1100, 1010)
-            st.markdown("---")
-            submit = st.form_submit_button("HITUNG PREDIKSI")
+            submit = st.form_submit_button("HITUNG SEKARANG")
 
         if submit:
             st.session_state['res'] = run_prediction(st.session_state['hist_data'], t, h, p, model_type.lower())
@@ -192,45 +169,27 @@ def main():
             now_row = df_res.iloc[0]
             next_row = df_res.iloc[1]
 
-            # Metric Cards
+            # Metrics
             m1, m2, m3 = st.columns(3)
-            m1.metric(f"Saat Ini ({now_row['Jam']})", f"{now_row['GHI (W/m²)']}", now_row['Kualitas'])
-            
-            diff = int(next_row['GHI (W/m²)'] - now_row['GHI (W/m²)'])
-            m2.metric(f"Jam {next_row['Jam']}", f"{next_row['GHI (W/m²)']}", f"{diff} W/m²")
-            
-            m3.metric("Puncak Hari Ini", f"{df_res['GHI (W/m²)'].max()} W/m²")
+            m1.metric(f"Jam {now_row['Jam']}", f"{now_row['GHI (W/m²)']} W/m²")
+            m2.metric(f"Prediksi 1 Jam", f"{next_row['GHI (W/m²)']} W/m²")
+            m3.metric("Kualitas", f"{now_row['Kualitas']}")
 
             # Chart
             st.markdown("---")
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=df_res['Waktu'], y=df_res['GHI (W/m²)'],
-                mode='lines+markers',
-                line=dict(color='#667eea', width=4),
-                fill='tozeroy',
-                fillcolor='rgba(102, 126, 234, 0.1)',
-                name='GHI'
+                mode='lines+markers', line=dict(color='#667eea', width=3),
+                fill='tozeroy', name='GHI'
             ))
-            fig.update_layout(
-                xaxis_title="Waktu (24 Jam)",
-                yaxis_title="GHI (W/m²)",
-                height=350,
-                margin=dict(l=0,r=0,t=10,b=0),
-                hovermode="x unified"
-            )
+            fig.update_layout(height=350, margin=dict(l=0,r=0,t=10,b=0), template="plotly_white" if st.get_option("theme.base") == "light" else "plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
 
-            # Detail Table
-            st.subheader("📋 Detail Estimasi 24 Jam")
-            st.dataframe(
-                df_res[['Jam', 'GHI (W/m²)', 'Kualitas', 'Confidence']],
-                use_container_width=True,
-                hide_index=True,
-                height=500
-            )
+            # Table
+            st.dataframe(df_res[['Jam', 'GHI (W/m²)', 'Kualitas', 'Confidence']], use_container_width=True, hide_index=True, height=400)
         else:
-            st.info("Atur parameter cuaca di kiri dan klik 'HITUNG PREDIKSI' untuk melihat dashboard.")
+            st.info("Silakan klik tombol 'HITUNG SEKARANG'.")
 
 if __name__ == "__main__":
     main()
