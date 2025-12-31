@@ -17,13 +17,12 @@ st.set_page_config(
 )
 
 # ========================================================================
-# CUSTOM CSS (ADAPTIF DARK & LIGHT MODE)
+# CUSTOM CSS (OPTIMASI DARK/LIGHT MODE & TYPOGRAPHY)
 # ========================================================================
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     
-    /* Header Utama */
     .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2rem;
@@ -33,27 +32,28 @@ st.markdown("""
         margin-bottom: 20px;
     }
 
-    /* FIX: Box Pengumuman Adaptif */
+    /* Box Pengumuman yang Lebih Proper & Jelas */
     .announce-box {
-        /* Mengikuti warna teks sistem agar terlihat di dark/light mode */
         color: var(--text-color); 
-        background-color: rgba(102, 126, 234, 0.1); /* Transparan lembut */
-        border: 1px solid #667eea;
+        background-color: rgba(102, 126, 234, 0.08);
+        border: 1px solid rgba(102, 126, 234, 0.3);
         border-left: 6px solid #667eea;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 25px;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 30px;
         line-height: 1.6;
     }
     
-    .announce-box strong {
-        display: block;
-        margin-bottom: 5px;
-        font-size: 1.1rem;
-        color: #667eea; /* Tetap ungu agar konsisten */
+    .announce-box b {
+        color: #667eea;
+        font-size: 1.15rem;
     }
 
-    /* Link yang terlihat di semua mode (Gold/Orange) */
+    .instructions {
+        margin-top: 10px;
+        padding-left: 20px;
+    }
+
     .announce-link {
         color: #FFA500 !important; 
         text-decoration: underline;
@@ -65,7 +65,7 @@ st.markdown("""
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white !important;
         font-weight: bold;
-        height: 3rem;
+        height: 3.5rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -83,10 +83,10 @@ def load_excel_data(uploaded_file):
         if kolom_bulan:
             target_col = kolom_bulan[datetime.now().month - 1]
             ghi_values = pd.to_numeric(df.iloc[:24][target_col], errors='coerce').fillna(0).tolist()
-            return pd.DataFrame({'hour': range(24), 'GHI': ghi_values}), True, f"Data {target_col} Aktif"
+            return pd.DataFrame({'hour': range(24), 'GHI': ghi_values}), True, f"Data Profil {target_col} Berhasil Dimuat"
     except Exception as e:
-        return None, False, str(e)
-    return None, False, "Format tidak cocok"
+        return None, False, f"Format file salah atau rusak: {str(e)}"
+    return None, False, "Format sheet Solar Atlas tidak terdeteksi."
 
 def get_status(ghi):
     if ghi == 0: return "🌙 Malam"
@@ -105,7 +105,7 @@ def run_prediction(historical_data, temp, hum, press, model):
         hr = future.hour
         val = base_dict.get(hr, 0) * w_factor
         if hr < 6 or hr >= 18: val = 0 
-        if model in ['arima', 'sarima']: val *= (1 + np.random.randn() * 0.03)
+        if model.lower() in ['arima', 'sarima']: val *= (1 + np.random.randn() * 0.03)
         
         final_ghi = round(max(0, val))
         results.append({
@@ -121,47 +121,56 @@ def run_prediction(historical_data, temp, hum, press, model):
 def main():
     st.markdown("""
         <div class="main-header">
-            <h1 style='color: white; margin:0;'>SISTEM PREDIKSI GHI</h1>
-            <p style='color: white; opacity: 0.8;'>Monitoring Real-Time Radiasi Matahari</p>
+            <h1 style='color: white; margin:0;'>SISTEM PREDIKSI RADIASI MATAHARI (GHI)</h1>
+            <p style='color: white; opacity: 0.9;'>Estimasi Real-Time 24 Jam Kedepan</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Box Pengumuman dengan Warna Teks Fleksibel
+    # Box Pengumuman yang Jauh Lebih Jelas
     st.markdown("""
         <div class="announce-box">
-            <strong>📢 SUMBER DATA HISTORIS</strong>
-            Sistem ini menggunakan profil radiasi dari 
-            <a href="https://globalsolaratlas.info/" target="_blank" class="announce-link">Global Solar Atlas</a>. 
-            Data disesuaikan secara real-time berdasarkan jam sistem Anda.
+            <b>⚠️ Instruksi Persiapan Data:</b>
+            Untuk mendapatkan hasil prediksi yang akurat dan sesuai dengan lokasi Anda, mohon ikuti langkah berikut:
+            <div class="instructions">
+                1. Kunjungi situs <a href="https://globalsolaratlas.info/" target="_blank" class="announce-link">Global Solar Atlas</a>.<br>
+                2. Pilih lokasi spesifik Anda dan unduh data <b>"Average hourly profiles"</b>.<br>
+                3. Pastikan file dalam format <b>.xlsx (Excel)</b>.<br>
+                4. Upload file tersebut pada menu sidebar di sebelah kiri.<br>
+                <i>*Jika tidak mengunggah data, sistem akan menggunakan nilai default 0.</i>
+            </div>
         </div>
     """, unsafe_allow_html=True)
 
     with st.sidebar:
-        st.header("📂 Data Source")
-        uploaded_file = st.file_uploader("Upload Excel", type=['xlsx'])
+        st.header("📂 Panel Data")
+        uploaded_file = st.file_uploader("Unggah File Solar Atlas (.xlsx)", type=['xlsx'])
         if uploaded_file:
             data, success, msg = load_excel_data(uploaded_file)
             if success:
                 st.session_state['hist_data'] = data
                 st.success(msg)
+            else:
+                st.error(msg)
         
         if 'hist_data' not in st.session_state:
             st.session_state['hist_data'] = pd.DataFrame({'hour': range(24), 'GHI': [0]*24})
         
-        model_type = st.selectbox("Metode", ['ARIMA', 'SARIMA', 'Exponential'])
+        st.markdown("---")
+        model_type = st.selectbox("Metode Forecasting", ['ARIMA', 'SARIMA', 'Exponential Smoothing'])
 
-    col_in, col_out = st.columns([1, 2], gap="medium")
+    col_in, col_out = st.columns([1, 2], gap="large")
 
     with col_in:
-        st.subheader("🌦️ Parameter Cuaca")
+        st.subheader("🌦️ Input Cuaca Saat Ini")
         with st.form("input_form"):
-            t = st.slider("Suhu (°C)", 15, 45, 30)
+            t = st.slider("Temperatur (°C)", 15, 45, 30)
             h = st.slider("Kelembapan (%)", 0, 100, 60)
-            p = st.number_input("Tekanan (hPa)", 900, 1100, 1010)
-            submit = st.form_submit_button("HITUNG SEKARANG")
+            p = st.number_input("Tekanan Udara (hPa)", 900, 1100, 1010)
+            st.markdown("<br>", unsafe_allow_html=True)
+            submit = st.form_submit_button("PROSES PREDIKSI")
 
         if submit:
-            st.session_state['res'] = run_prediction(st.session_state['hist_data'], t, h, p, model_type.lower())
+            st.session_state['res'] = run_prediction(st.session_state['hist_data'], t, h, p, model_type)
 
     with col_out:
         if 'res' in st.session_state:
@@ -169,27 +178,42 @@ def main():
             now_row = df_res.iloc[0]
             next_row = df_res.iloc[1]
 
-            # Metrics
+            # Dashboard Metrics
             m1, m2, m3 = st.columns(3)
-            m1.metric(f"Jam {now_row['Jam']}", f"{now_row['GHI (W/m²)']} W/m²")
-            m2.metric(f"Prediksi 1 Jam", f"{next_row['GHI (W/m²)']} W/m²")
-            m3.metric("Kualitas", f"{now_row['Kualitas']}")
+            with m1:
+                st.metric(f"Jam {now_row['Jam']}", f"{now_row['GHI (W/m²)']} W/m²")
+            with m2:
+                diff = int(next_row['GHI (W/m²)'] - now_row['GHI (W/m²)'])
+                st.metric(f"Prediksi 1 Jam", f"{next_row['GHI (W/m²)']} W/m²", delta=f"{diff} W/m²")
+            with m3:
+                st.metric("Kualitas Sinar", now_row['Kualitas'])
 
-            # Chart
+            # Chart Proyeksi
             st.markdown("---")
+            st.subheader("📈 Kurva Estimasi 24 Jam")
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=df_res['Waktu'], y=df_res['GHI (W/m²)'],
                 mode='lines+markers', line=dict(color='#667eea', width=3),
-                fill='tozeroy', name='GHI'
+                fill='tozeroy', fillcolor='rgba(102, 126, 234, 0.1)', name='GHI'
             ))
-            fig.update_layout(height=350, margin=dict(l=0,r=0,t=10,b=0), template="plotly_white" if st.get_option("theme.base") == "light" else "plotly_dark")
+            fig.update_layout(
+                margin=dict(l=0,r=0,t=20,b=0), height=350,
+                hovermode="x unified",
+                template="plotly_white" if st.get_option("theme.base") == "light" else "plotly_dark"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-            # Table
-            st.dataframe(df_res[['Jam', 'GHI (W/m²)', 'Kualitas', 'Confidence']], use_container_width=True, hide_index=True, height=400)
+            # Detail Table
+            st.subheader("📋 Tabel Rincian Per Jam")
+            st.dataframe(
+                df_res[['Jam', 'GHI (W/m²)', 'Kualitas', 'Confidence']], 
+                use_container_width=True, 
+                hide_index=True, 
+                height=450
+            )
         else:
-            st.info("Silakan klik tombol 'HITUNG SEKARANG'.")
+            st.info("💡 Silakan isi parameter cuaca dan klik 'PROSES PREDIKSI' untuk melihat hasil.")
 
 if __name__ == "__main__":
     main()
