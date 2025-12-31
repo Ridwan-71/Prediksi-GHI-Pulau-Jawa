@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Dec 31 19:47:11 2025
-
-@author: Advan
-"""
 
 """
 ========================================================================
@@ -100,43 +94,48 @@ def generate_historical_data(days=30):
 # FUNGSI LOAD EXCEL (VERSI TERBARU)
 # ========================================================================
 def load_excel_data(uploaded_file):
-    """Load data GHI dari file Excel dengan pencarian kolom otomatis"""
+    """
+    Versi penyesuaian untuk format Global Solar Atlas (Hourly Profiles)
+    Membaca profil jam rata-rata bulanan.
+    """
     try:
-        # Membaca file excel
-        df = pd.read_excel(uploaded_file)
+        # 1. Baca file excel. Berdasarkan metadata, data mulai setelah baris ke-4
+        df = pd.read_excel(uploaded_file, skiprows=4)
         
-        # 1. Mencari kolom Waktu (mencari kata kunci bahasa Inggris atau Indonesia)
-        timestamp_col = None
-        for col in df.columns:
-            if any(key in col.lower() for key in ['time', 'date', 'waktu', 'tanggal']):
-                timestamp_col = col
-                break
+        # 2. Identifikasi kolom bulan saat ini (Jan, Feb, Mar, dst.)
+        # Kita gunakan bulan berjalan secara otomatis agar relevan
+        nama_bulan_sekarang = datetime.now().strftime('%b') 
         
-        # 2. Mencari kolom GHI (mencari kata kunci GHI, Radiasi, atau Irradiance)
-        ghi_col = None
-        for col in df.columns:
-            if any(key in col.lower() for key in ['ghi', 'irradiance', 'radiasi', 'watt']):
-                ghi_col = col
-                break
+        # Cari kolom yang namanya cocok dengan bulan sekarang
+        kolom_bulan = [c for c in df.columns if nama_bulan_sekarang in str(c)]
         
-        if timestamp_col and ghi_col:
-            # Mengonversi kolom waktu ke format datetime
-            df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+        if not kolom_bulan:
+            # Jika tidak ketemu (misal format bahasa berbeda), ambil kolom pertama setelah kolom jam
+            kolom_bulan = [df.columns[1]]
             
-            # Membersihkan baris yang kosong (NaN)
-            df = df.dropna(subset=[timestamp_col, ghi_col])
-            
-            # Ambil data dan urutkan berdasarkan waktu agar model prediksi akurat
-            result = df[[timestamp_col, ghi_col]].copy()
-            result.columns = ['timestamp', 'GHI']
-            result = result.sort_values('timestamp')
-            
-            return result, True, f"✅ Sukses: Menggunakan kolom '{timestamp_col}' & '{ghi_col}' ({len(result)} data)"
-        else:
-            return None, False, "❌ Error: Kolom 'Waktu' atau 'GHI' tidak ditemukan di Excel."
+        ghi_col_name = kolom_bulan[0]
+
+        # 3. Ambil 24 baris data (untuk jam 00:00 sampai 23:00)
+        df_24h = df.iloc[:24].copy()
+        
+        # 4. Konversi nilai GHI ke angka (membersihkan jika ada karakter non-angka)
+        df_24h['GHI_clean'] = pd.to_numeric(df_24h[ghi_col_name], errors='coerce').fillna(0)
+        
+        # 5. Buat struktur Timestamp buatan (Dummy) untuk 24 jam terakhir
+        # Ini diperlukan agar fungsi prediksi ARIMA/SARIMA kamu tidak error
+        waktu_sekarang = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        timestamps = [waktu_sekarang + timedelta(hours=i) for i in range(24)]
+        
+        # 6. Susun hasil akhir
+        result = pd.DataFrame({
+            'timestamp': timestamps,
+            'GHI': df_24h['GHI_clean'].values
+        })
+        
+        return result, True, f"✅ Sukses! Menggunakan profil rata-rata bulan {ghi_col_name}"
             
     except Exception as e:
-        return None, False, f"❌ Error saat membaca file: {str(e)}"
+        return None, False, f"❌ Gagal membaca format Global Solar Atlas: {str(e)}"
 
 # ========================================================================
 # FUNGSI PREDIKSI
