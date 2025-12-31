@@ -420,15 +420,15 @@ def main():
                 "🌡️ Suhu (°C)",
                 min_value=15.0,
                 max_value=40.0,
-                value=28.0,
-                step=0.1
+                value=25.0,
+                step=1.0
             )
             
             humidity = st.number_input(
                 "💧 Kelembapan (%)",
                 min_value=0.0,
                 max_value=100.0,
-                value=65.0,
+                value=75.0,
                 step=0.1
             )
             
@@ -436,7 +436,7 @@ def main():
                 "📊 Tekanan Udara (hPa)",
                 min_value=950.0,
                 max_value=1050.0,
-                value=1013.0,
+                value=1006.0,
                 step=0.1
             )
             
@@ -519,7 +519,7 @@ def main():
             def get_status(ghi):
                 if ghi > 700:
                     return "☀️ Optimal"
-                elif ghi > 300:
+                elif ghi > 200:
                     return "⛅ Baik"
                 elif ghi > 0:
                     return "🌤️ Rendah"
