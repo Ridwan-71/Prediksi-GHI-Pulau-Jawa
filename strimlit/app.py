@@ -1,4 +1,11 @@
-def load_excel_data(uploaded_file):"""
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Dec 31 19:47:11 2025
+
+@author: Advan
+"""
+
+"""
 ========================================================================
 SISTEM PREDIKSI GHI DI PULAU JAWA
 Kode ini adalah rekonstruksi dari aplikasi yang sedang berjalan
@@ -90,35 +97,46 @@ def generate_historical_data(days=30):
     return df
 
 # ========================================================================
-# FUNGSI LOAD EXCEL
+# FUNGSI LOAD EXCEL (VERSI TERBARU)
 # ========================================================================
 def load_excel_data(uploaded_file):
-    """Load data GHI dari file Excel"""
+    """Load data GHI dari file Excel dengan pencarian kolom otomatis"""
     try:
+        # Membaca file excel
         df = pd.read_excel(uploaded_file)
         
+        # 1. Mencari kolom Waktu (mencari kata kunci bahasa Inggris atau Indonesia)
         timestamp_col = None
         for col in df.columns:
-            if 'time' in col.lower() or 'date' in col.lower():
+            if any(key in col.lower() for key in ['time', 'date', 'waktu', 'tanggal']):
                 timestamp_col = col
                 break
         
+        # 2. Mencari kolom GHI (mencari kata kunci GHI, Radiasi, atau Irradiance)
         ghi_col = None
         for col in df.columns:
-            if 'ghi' in col.lower() or 'irradiance' in col.lower():
+            if any(key in col.lower() for key in ['ghi', 'irradiance', 'radiasi', 'watt']):
                 ghi_col = col
                 break
         
         if timestamp_col and ghi_col:
+            # Mengonversi kolom waktu ke format datetime
             df[timestamp_col] = pd.to_datetime(df[timestamp_col])
+            
+            # Membersihkan baris yang kosong (NaN)
+            df = df.dropna(subset=[timestamp_col, ghi_col])
+            
+            # Ambil data dan urutkan berdasarkan waktu agar model prediksi akurat
             result = df[[timestamp_col, ghi_col]].copy()
             result.columns = ['timestamp', 'GHI']
-            return result, True, f"✅ Berhasil memuat {len(result)} data point"
+            result = result.sort_values('timestamp')
+            
+            return result, True, f"✅ Sukses: Menggunakan kolom '{timestamp_col}' & '{ghi_col}' ({len(result)} data)"
         else:
-            return None, False, "❌ Kolom timestamp atau GHI tidak ditemukan"
+            return None, False, "❌ Error: Kolom 'Waktu' atau 'GHI' tidak ditemukan di Excel."
             
     except Exception as e:
-        return None, False, f"❌ Error: {str(e)}"
+        return None, False, f"❌ Error saat membaca file: {str(e)}"
 
 # ========================================================================
 # FUNGSI PREDIKSI
