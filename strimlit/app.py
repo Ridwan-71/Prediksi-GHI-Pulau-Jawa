@@ -17,37 +17,33 @@ st.set_page_config(
 )
 
 # ========================================================================
-# CUSTOM CSS (ADAPTIF & USER FRIENDLY)
+# CUSTOM CSS (ADAPTIF & MODERN)
 # ========================================================================
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     
     .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        color: white !important;
+        background: linear-gradient(135deg, #FF8C00 0%, #FFD700 100%);
+        padding: 2.5rem;
+        border-radius: 20px;
+        color: #1e1e1e !important;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
     }
 
     .announce-box {
         color: var(--text-color); 
-        background-color: rgba(102, 126, 234, 0.08);
-        border: 1px solid rgba(102, 126, 234, 0.3);
-        border-left: 6px solid #667eea;
+        background-color: rgba(255, 140, 0, 0.05);
+        border: 1px solid rgba(255, 140, 0, 0.3);
+        border-left: 8px solid #FF8C00;
         padding: 25px;
-        border-radius: 12px;
+        border-radius: 15px;
         margin-bottom: 30px;
         line-height: 1.7;
     }
     
-    .announce-box b {
-        color: #667eea;
-        font-size: 1.1rem;
-    }
-
     .source-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -56,24 +52,25 @@ st.markdown("""
     }
 
     .source-item {
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.1);
         padding: 15px;
-        border-radius: 8px;
-        border: 1px dashed rgba(102, 126, 234, 0.5);
+        border-radius: 10px;
+        border: 1px dashed #FF8C00;
     }
 
     .announce-link {
-        color: #FFA500 !important; 
+        color: #FF4500 !important; 
         text-decoration: underline;
         font-weight: 700;
     }
 
     .stButton>button {
-        border-radius: 10px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);
         color: white !important;
         font-weight: bold;
         height: 3.5rem;
+        border: none;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -91,21 +88,22 @@ def load_excel_data(uploaded_file):
         if kolom_bulan:
             target_col = kolom_bulan[datetime.now().month - 1]
             ghi_values = pd.to_numeric(df.iloc[:24][target_col], errors='coerce').fillna(0).tolist()
-            return pd.DataFrame({'hour': range(24), 'GHI': ghi_values}), True, f"Data Profil {target_col} Aktif"
+            return pd.DataFrame({'hour': range(24), 'GHI': ghi_values}), True, f"Profil {target_col} Aktif"
     except Exception as e:
         return None, False, f"Error: {str(e)}"
     return None, False, "Format tidak sesuai"
 
 def get_status(ghi):
-    if ghi == 0: return "🌙 Malam"
-    if ghi < 200: return "🔴 Buruk"
-    if ghi <= 600: return "🟡 Cukup Baik"
-    return "🟢 Baik"
+    if ghi == 0: return "🌙 Malam Hari"
+    if ghi < 200: return "🔴 Intensitas Rendah"
+    if ghi <= 600: return "🟡 Intensitas Sedang"
+    return "🟢 Intensitas Tinggi (Optimal)"
 
-def run_prediction(historical_data, temp, hum, press, model):
+def run_prediction(historical_data, temp, hum, press):
     now = datetime.now().replace(minute=0, second=0, microsecond=0)
     base_dict = historical_data.set_index('hour')['GHI'].to_dict()
     w_factor = (1 + (temp - 25) * 0.003) * (1 - (hum / 100) * 0.15) * (press / 1013)
+    
     results = []
     for i in range(25):
         future = now + timedelta(hours=i)
@@ -124,38 +122,39 @@ def run_prediction(historical_data, temp, hum, press, model):
 # MAIN APP
 # ========================================================================
 def main():
+    # Header dengan Ikon Matahari
     st.markdown("""
         <div class="main-header">
-            <h1 style='color: white; margin:0;'>DASHBOARD PREDIKSI GHI REAL-TIME</h1>
-            <p style='color: white; opacity: 0.9;'>Monitoring Energi Matahari Wilayah Pulau Jawa</p>
+            <h1 style='margin:0;'>🌞 PREDIKSI RADIASI MATAHARI (GHI)</h1>
+            <p style='font-size: 1.2rem; font-weight: 600;'>Dashboard Monitoring Real-Time & Estimasi 24 Jam</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Box Pengumuman Proper
+    # Box Panduan
     st.markdown("""
         <div class="announce-box">
             <b>📋 Panduan Persiapan Data & Parameter:</b>
-            Untuk akurasi prediksi maksimal, pastikan Anda mengisi data dari sumber berikut:
+            Untuk mendapatkan akurasi estimasi yang maksimal, pastikan Anda melengkapi data berikut:
             <div class="source-grid">
                 <div class="source-item">
-                    <b>1. Data Profil GHI (Histori)</b><br>
-                    Unduh file <b>Average hourly profiles (.xlsx)</b> dari 
-                    <a href="https://globalsolaratlas.info/" target="_blank" class="announce-link">Global Solar Atlas</a> 
-                    sesuai lokasi Anda, lalu unggah di sidebar kiri.
+                    <b>1. Profil Historis GHI</b><br>
+                    Gunakan file <b>Average hourly profiles (.xlsx)</b> dari 
+                    <a href="https://globalsolaratlas.info/" target="_blank" class="announce-link">Global Solar Atlas</a>.
+                    Upload file pada panel sebelah kiri.
                 </div>
                 <div class="source-item">
-                    <b>2. Data Cuaca (Real-Time)</b><br>
-                    Cari data <b>Suhu, Kelembapan, dan Tekanan Udara</b> terkini melalui 
-                    <a href="https://www.google.com/search?q=cuaca+hari+ini" target="_blank" class="announce-link">Google Cuaca</a> 
-                    sesuai wilayah Anda, lalu masukkan pada panel input.
+                    <b>2. Data Cuaca Real-Time</b><br>
+                    Cek data <b>Suhu, Kelembapan, dan Tekanan Udara</b> terkini melalui 
+                    <a href="https://www.google.com/search?q=cuaca+hari+ini" target="_blank" class="announce-link">Google Search</a> 
+                    sesuai lokasi Anda.
                 </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
     with st.sidebar:
-        st.header("📂 Data Source")
-        uploaded_file = st.file_uploader("Unggah Excel Solar Atlas", type=['xlsx'])
+        st.header("📂 Pengaturan Data")
+        uploaded_file = st.file_uploader("Upload Profil Solar Atlas", type=['xlsx'])
         if uploaded_file:
             data, success, msg = load_excel_data(uploaded_file)
             if success:
@@ -166,21 +165,21 @@ def main():
             st.session_state['hist_data'] = pd.DataFrame({'hour': range(24), 'GHI': [0]*24})
         
         st.markdown("---")
-        model_type = st.selectbox("Model", ['ARIMA', 'SARIMA', 'Exponential'])
+        st.info("Sistem ini memproyeksikan radiasi berdasarkan kombinasi data historis dan kondisi cuaca saat ini.")
 
     col_in, col_out = st.columns([1, 2], gap="large")
 
     with col_in:
-        st.subheader("📝 Input Parameter")
+        st.subheader("📝 Input Parameter Cuaca")
         with st.form("input_form"):
-            t = st.slider("Suhu / Temperature (°C)", 15, 45, 30)
-            h = st.slider("Kelembapan / Humidity (%)", 0, 100, 60)
-            p = st.number_input("Tekanan / Pressure (hPa)", 900, 1100, 1010)
+            t = st.slider("Temperatur Udara (°C)", 15, 45, 30)
+            h = st.slider("Kelembapan Udara (%)", 0, 100, 60)
+            p = st.number_input("Tekanan Udara (hPa)", 900, 1100, 1010)
             st.markdown("<br>", unsafe_allow_html=True)
-            submit = st.form_submit_button("PROSES PREDIKSI")
+            submit = st.form_submit_button("MULAI PROSES PREDIKSI")
 
         if submit:
-            st.session_state['res'] = run_prediction(st.session_state['hist_data'], t, h, p, model_type)
+            st.session_state['res'] = run_prediction(st.session_state['hist_data'], t, h, p)
 
     with col_out:
         if 'res' in st.session_state:
@@ -188,29 +187,35 @@ def main():
             now_row = df_res.iloc[0]
             next_row = df_res.iloc[1]
 
+            # Dashboard Metrics
             m1, m2, m3 = st.columns(3)
-            with m1: st.metric(f"GHI Sekarang", f"{now_row['GHI (W/m²)']} W/m²")
+            with m1: st.metric(f"Jam Sekarang ({now_row['Jam']})", f"{now_row['GHI (W/m²)']} W/m²")
             with m2: 
                 diff = int(next_row['GHI (W/m²)'] - now_row['GHI (W/m²)'])
-                st.metric(f"Prediksi 1 Jam", f"{next_row['GHI (W/m²)']} W/m²", delta=f"{diff} W/m²")
-            with m3: st.metric("Kualitas", now_row['Kualitas'])
+                st.metric(f"Prediksi 1 Jam Ke Depan", f"{next_row['GHI (W/m²)']} W/m²", delta=f"{diff} W/m²")
+            with m3: st.metric("Status Radiasi", now_row['Kualitas'].split(' ')[1])
 
+            # Chart Proyeksi 24 Jam
             st.markdown("---")
+            st.subheader("📈 Proyeksi Radiasi 24 Jam Ke Depan")
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=df_res['Waktu'], y=df_res['GHI (W/m²)'],
-                mode='lines+markers', line=dict(color='#667eea', width=3),
-                fill='tozeroy', name='GHI'
+                mode='lines+markers', line=dict(color='#FF8C00', width=4),
+                fill='tozeroy', fillcolor='rgba(255, 140, 0, 0.1)', name='Estimasi GHI'
             ))
             fig.update_layout(
-                margin=dict(l=0,r=0,t=20,b=0), height=350,
+                margin=dict(l=0,r=0,t=20,b=0), height=380,
+                hovermode="x unified",
                 template="plotly_white" if st.get_option("theme.base") == "light" else "plotly_dark"
             )
             st.plotly_chart(fig, use_container_width=True)
 
+            # Detail Table
+            st.subheader("📋 Rincian Estimasi Per Jam")
             st.dataframe(df_res[['Jam', 'GHI (W/m²)', 'Kualitas', 'Confidence']], use_container_width=True, hide_index=True, height=450)
         else:
-            st.info("Silakan isi parameter cuaca di kiri dan klik 'PROSES PREDIKSI'.")
+            st.warning("⚠️ Silakan lengkapi parameter cuaca di panel kiri, lalu tekan tombol prediksi.")
 
 if __name__ == "__main__":
     main()
