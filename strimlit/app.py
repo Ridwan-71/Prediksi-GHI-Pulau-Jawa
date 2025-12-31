@@ -102,22 +102,39 @@ def get_status(ghi):
 def run_prediction(historical_data, temp, hum, press):
     now = datetime.now().replace(minute=0, second=0, microsecond=0)
     base_dict = historical_data.set_index('hour')['GHI'].to_dict()
-    w_factor = (1 + (temp - 25) * 0.003) * (1 - (hum / 100) * 0.15) * (press / 1013)
     
     results = []
     for i in range(25):
         future = now + timedelta(hours=i)
         hr = future.hour
-        val = base_dict.get(hr, 0) * w_factor
-        if hr < 6 or hr >= 18: val = 0 
-        final_ghi = round(max(0, val))
+        
+        # --- TAHAP 1: OUTPUT MODEL UTAMA (RAW) ---
+        # Mengambil nilai dasar dari profil historis Solar Atlas
+        raw_ghi = base_dict.get(hr, 0)
+        
+        # --- TAHAP 2: MODEL POST-PROCESSING (BIAS CORRECTION) ---
+        # Menghitung faktor koreksi berdasarkan kondisi cuaca terkini
+        t_factor = (1 + (temp - 25) * 0.003)  # Koreksi suhu
+        h_factor = (1 - (hum / 100) * 0.15)   # Koreksi kelembapan
+        p_factor = (press / 1013)             # Koreksi tekanan udara
+        
+        adjustment_factor = t_factor * h_factor * p_factor
+        
+        # Menerapkan koreksi pada hasil raw model
+        if hr < 6 or hr >= 18:
+            final_ghi = 0
+        else:
+            # Di sini terjadi "Post-processing"
+            final_ghi = round(max(0, raw_ghi * adjustment_factor))
+            
         results.append({
-            "Waktu": future, "Jam": future.strftime('%H:%M'),
-            "GHI (W/m²)": final_ghi, "Kualitas": get_status(final_ghi),
+            "Waktu": future, 
+            "Jam": future.strftime('%H:%M'),
+            "GHI (W/m²)": final_ghi, 
+            "Kualitas": get_status(final_ghi),
             "Confidence": f"{max(60, 95 - i*1.4):.1f}%"
         })
     return pd.DataFrame(results)
-
 # ========================================================================
 # MAIN APP
 # ========================================================================
@@ -219,3 +236,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
