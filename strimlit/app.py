@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ========================================================================
-# CUSTOM CSS (Tema Asli)
+# CUSTOM CSS (Tema Asli & Tambahan Label)
 # ========================================================================
 st.markdown("""
     <style>
@@ -45,7 +45,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ========================================================================
-# FUNGSI LOAD EXCEL (Format Atlas)
+# FUNGSI LOAD EXCEL
 # ========================================================================
 def load_excel_data(uploaded_file):
     try:
@@ -67,34 +67,43 @@ def load_excel_data(uploaded_file):
     return None, False, "❌ Format file tidak sesuai"
 
 # ========================================================================
-# LOGIKA PREDIKSI REAL-TIME (24 Langkah)
+# LOGIKA PREDIKSI & LABELING
 # ========================================================================
+def get_ghi_quality(ghi):
+    if ghi == 0:
+        return "🌙 Malam"
+    elif ghi < 200:
+        return "🔴 Buruk"
+    elif 200 <= ghi <= 600:
+        return "🟡 Cukup Baik"
+    elif ghi > 600:
+        return "🟢 Baik"
+    return "-"
+
 def predict_with_weather_realtime(historical_data, temp, humidity, pressure, model_type='arima', steps=24):
     now = datetime.now().replace(minute=0, second=0, microsecond=0)
     base_pattern = historical_data.set_index('hour')['GHI'].to_dict()
-    
-    # Faktor koreksi cuaca sederhana
     weather_factor = (1 + (temp - 25) * 0.003) * (1 - (humidity / 100) * 0.15) * (pressure / 1013)
     
     results = []
     for i in range(steps + 1):
         future_time = now + timedelta(hours=i)
         f_hour = future_time.hour
-        
         base_ghi = base_pattern.get(f_hour, 0)
         noise = 1 + (np.random.randn() * 0.04) if model_type in ['arima', 'sarima'] else 1.0
         
-        # Batasan operasional matahari (06:00 - 18:00)
         if f_hour < 6 or f_hour >= 18:
             final_ghi = 0
         else:
             final_ghi = base_ghi * weather_factor * noise
             
+        val_ghi = round(max(0, final_ghi))
         results.append({
             'Waktu': future_time,
             'Jam': future_time.strftime('%H:%M'),
-            'GHI': round(max(0, final_ghi)),
-            'Confidence': max(55, 95 - i*1.6)
+            'GHI (W/m²)': val_ghi,
+            'Kualitas': get_ghi_quality(val_ghi),
+            'Confidence': f"{max(55, 95 - i*1.6):.1f}%"
         })
     return pd.DataFrame(results)
 
@@ -104,36 +113,30 @@ def predict_with_weather_realtime(historical_data, temp, humidity, pressure, mod
 def main():
     st.markdown("<h1>🌞 Sistem Prediksi GHI di Pulau Jawa</h1>", unsafe_allow_html=True)
     
-    # ANNOUNCEMENT BOX
     st.markdown("""
         <div class="announce-box">
             <strong>📢 Informasi Sistem:</strong><br>
-            Data profil historis yang akurat untuk lokasi spesifik Anda dapat diunduh melalui 
+            Data profil historis yang akurat untuk lokasi spesifik dapat diperoleh dari 
             <a href="https://globalsolaratlas.info/" target="_blank" style="color: #667eea; font-weight: bold;">Global Solar Atlas</a>. 
-            Sistem ini secara otomatis menyesuaikan prediksi berdasarkan jam sistem secara real-time.
+            Sistem memproses prediksi 24 jam ke depan secara real-time berdasarkan jam saat ini.
         </div>
     """, unsafe_allow_html=True)
 
-    # SIDEBAR
     with st.sidebar:
         st.header("⚙️ Pengaturan")
         uploaded_file = st.file_uploader("Upload Data Atlas (Excel)", type=['xlsx'])
-        
         if uploaded_file:
             data, success, message = load_excel_data(uploaded_file)
             if success:
-                st.success(message)
                 st.session_state['historical_data'] = data
-            else: st.error(message)
+                st.success(message)
         
         if 'historical_data' not in st.session_state:
-            # Default kosong jika user belum upload
             st.session_state['historical_data'] = pd.DataFrame({'hour': range(24), 'GHI': [0]*24})
-            st.warning("Silahkan upload file dari Solar Atlas")
+            st.warning("Gunakan file Solar Atlas untuk hasil nyata")
             
         model_type = st.selectbox("Model Prediksi", ['arima', 'sarima', 'exponential', 'moving_average'])
 
-    # MAIN LAYOUT
     col1, col2 = st.columns([1, 2])
     
     with col1:
@@ -155,42 +158,40 @@ def main():
             pred_now = res.iloc[0]
             pred_1h = res.iloc[1]
             
-            # METRIK STATISTIK
             st.subheader("📊 Statistik Prediksi Real-Time")
             ms1, ms2, ms3 = st.columns(3)
             with ms1:
-                st.metric(f"Jam Sekarang ({pred_now['Jam']})", f"{pred_now['GHI']} W/m²")
+                st.metric(f"Saat Ini ({pred_now['Jam']})", f"{pred_now['GHI (W/m²)']} W/m²")
             with ms2:
-                diff = int(pred_1h['GHI'] - pred_now['GHI'])
-                st.metric(f"Prediksi 1 Jam ({pred_1h['Jam']})", f"{pred_1h['GHI']} W/m²", delta=f"{diff} W/m²")
+                diff = int(pred_1h['GHI (W/m²)'] - pred_now['GHI (W/m²)'])
+                st.metric(f"Prediksi Jam {pred_1h['Jam']}", f"{pred_1h['GHI (W/m²)']} W/m²", delta=f"{diff} W/m²")
             with ms3:
-                st.metric("Puncak Prediksi", f"{res['GHI'].max()} W/m²")
+                st.metric("Puncak Hari Ini", f"{res['GHI (W/m²)'].max()} W/m²")
 
-            # GRAFIK 24 JAM
             st.markdown("---")
             st.subheader("📈 Kurva Proyeksi 24 Jam")
             fig = go.Figure()
             fig.add_trace(go.Scatter(
-                x=res['Waktu'], y=res['GHI'],
+                x=res['Waktu'], y=res['GHI (W/m²)'],
                 mode='lines+markers',
                 line=dict(color='#667eea', width=3),
                 fill='tozeroy',
                 fillcolor='rgba(102, 126, 234, 0.1)',
-                name='Prediksi GHI'
+                name='GHI'
             ))
-            fig.update_layout(xaxis_title="Waktu", yaxis_title="W/m²", height=380, margin=dict(l=0,r=0,t=20,b=0))
+            fig.update_layout(xaxis_title="Waktu", yaxis_title="W/m²", height=350, margin=dict(l=0,r=0,t=20,b=0))
             st.plotly_chart(fig, use_container_width=True)
             
-            # TABEL DETAIL (Full 24 Jam)
-            st.subheader("📋 Tabel Detail Prediksi (24 Jam)")
+            st.subheader("📋 Tabel Detail Prediksi (24 Jam Kedepan)")
+            # Menampilkan tabel dengan kolom GHI dan Kualitas
             st.dataframe(
-                res[['Jam', 'GHI', 'Confidence']], 
+                res[['Jam', 'GHI (W/m²)', 'Kualitas', 'Confidence']], 
                 use_container_width=True, 
                 hide_index=True,
-                height=300 # Ukuran diperbesar agar muat banyak baris
+                height=500 
             )
         else:
-            st.info("👈 Masukkan data cuaca dan klik tombol 'Prediksi' untuk melihat hasil real-time.")
+            st.info("👈 Masukkan data cuaca dan klik tombol 'Prediksi' untuk memulai.")
 
 if __name__ == "__main__":
     main()
